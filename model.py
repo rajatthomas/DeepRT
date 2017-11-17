@@ -62,6 +62,10 @@ def train(epoch, X_train, y_train):
         loss = F.mse_loss(output, target)
         loss.backward()
 
+        if batch_idx % args.log_interval == 0:
+            print('Train Epoch {}: {}/{} batches \t Loss: {:.6f}',format(
+                epoch, batch_idx, nbatches, loss.data[0]))
+
 def run(args):
     X_train, X_test, y_train, y_test = get_data()
     print("Size of X is {}".format(X.shape))
