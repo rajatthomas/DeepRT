@@ -3,6 +3,7 @@ import argparse
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.autograd import Variable
 import torch.optim as optim
 import numpy as np
 from sklearn.model_selection import train_test_split
@@ -33,16 +34,10 @@ class RTnet(nn.Module):
         return x
 
 
-model = RTnet()
 
-if args.cuda:
-    model.cuda()
 
-# Define the optimizer
 
-optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
-
-def train(epoch, X_train, y_train):
+def train(args, model, optimizer, epoch, X_train, y_train):
     model.train()
 
     nbatches = X_train.shape[0]//args.batch_size
@@ -66,14 +61,49 @@ def train(epoch, X_train, y_train):
             print('Train Epoch {}: {}/{} batches \t Loss: {:.6f}',format(
                 epoch, batch_idx, nbatches, loss.data[0]))
 
+def test(args, model, X_test, y_test):
+    model.eval()
+    test_loss = 0
+    correct = 0
+    infered_betas = [];
+    nInputs = X_test.shape[0]
+    for i_input in range(nInputs):
+        data = X_test[i_input, :]
+        target = y_test[i_input, :]
+
+        if args.cuda:
+            data, target = data.cuda(), target.cuda()
+        data, target = Variable(data, volatile=True), Variable(target)
+        output = model(data)
+        infered_betas.append(output)
+        test_loss += F.mse_loss(output, target, size_average=False).data[0] # sum up batch loss
+
+    return infered_betas
+
 def run(args):
     X_train, X_test, y_train, y_test = get_data()
-    print("Size of X is {}".format(X.shape))
+    print("Size of X is {}".format(X_train.shape))
 
     X_train = torch.from_numpy(X_train)
     X_test = torch.from_numpy(X_test)
     y_train = torch.from_numpy(y_train)
     y_test = torch.from_numpy(y_test)
+
+    model = RTnet(X_train.shape[1], y_train.shape[1])
+    # Define the optimizer
+    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
+
+    if args.cuda:
+        model.cuda()
+
+    for epoch in range(1, args.epochs+1):
+        train(args, model, optimizer, epoch, X_train, y_train)
+
+
+    final_betas = test(args, model, X_test, y_test)
+    import pdb; pdb.set_trace()
+
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='MLP for Radiative Transfer')
